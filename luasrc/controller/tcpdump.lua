@@ -301,37 +301,42 @@ function update(cap_name)
 	luci.http.write_json(res)
 end
 
-function pump_file(file, mime_str)
-	local fh = io.open(file)
-	local reader = luci.ltn12.source.file(fh)
-	luci.http.header("Content-Disposition", "attachment; filename=\"" ..
-						 nixio.fs.basename(file) .. "\"")
-	if mime_str ~= nil then
-		luci.http.prepare_content(mime_str)
-	else
-		luci.http.prepare_content("application/octet-stream")
-	end
-	luci.ltn12.pump.all(reader, luci.http.write)
-	fh:close()
-end
-
 function capture_get(file_type, cap_name)
+	local fs = require "nixio.fs"
 	if file_type == "all" then
-		local system = require "luci.controller.admin.system"
-		local tar_captures_cmd = "tar -c " .. tcpdump_cap_folder ..
-									 "*.pcap 2>/dev/null"
-		local reader = system.ltn12_popen(tar_captures_cmd)
-		luci.http.header('Content-Disposition',
-						 'attachment; filename="captures-%s.tar"' %
-							 {os.date("%Y-%m-%d_%H.%M.%S")})
-		luci.http.prepare_content("application/x-tar")
-		luci.ltn12.pump.all(reader, luci.http.write)
+		local cmd = "gzip -c " .. tcpdump_cap_folder .. "*.pcap"
+		local download_name = 'capture-' .. os.date("%Y-%m-%d_%H.%M.%S") .. '.tar.gz'
+		local handle = io.popen(cmd)
+		local output = handle:read("*a")
+		handle:close()
+
+		if output ~= nil and output ~= "" then
+			luci.http.prepare_content("application/x-gzip")
+			luci.http.header("Content-Disposition", "attachment; filename=" .. download_name)
+			luci.http.write(output)
+		else
+			luci.http.status(500, "Error generating output")
+		end
 	elseif file_type == "pcap" then
 		local file = tcpdump_cap_folder .. cap_name .. '.pcap'
-		pump_file(file)
+		local download_name = cap_name .. '.pcap'
+		if fs.access(file) then
+			luci.http.prepare_content("application/octet-stream")
+			luci.http.header("Content-Disposition", "attachment; filename=" .. download_name)
+			luci.http.write(fs.readfile(file))
+		else
+			luci.http.status(404, "File not found")
+		end
 	elseif file_type == "filter" then
 		local file = tcpdump_filter_folder .. cap_name .. '.filter'
-		pump_file(file, "text/plain")
+		local download_name = cap_name .. '.filter'
+		if fs.access(file) then
+			luci.http.prepare_content("application/octet-stream")
+			luci.http.header("Content-Disposition", "attachment; filename=" .. download_name)
+			luci.http.write(fs.readfile(file))
+		else
+			luci.http.status(404, "File not found")
+		end
 	else
 		-- TODO
 	end
