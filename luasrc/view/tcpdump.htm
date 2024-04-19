@@ -16,7 +16,7 @@ You may obtain a copy of the License at
 
 $Id$
 
-2019-07-12  modified by KFERMercer <iMercer@yeah.com>:
+2019-07-12	modified by KFERMercer <iMercer@yeah.com>:
 	format code & change tag name
 
 -%>
@@ -66,10 +66,21 @@ $Id$
 	</div>
 </fieldset>
 
+<style>
+	.cbi-section-node textarea {
+		width: 100%; /* Set the textarea width to 100% of its container */
+		max-width: 100%; /* Limit the maximum width to the container's width */
+		box-sizing: border-box; /* Include padding and border in the width calculation */
+		overflow-y: scroll; /* Enable vertical scrolling */
+	}
+</style>
+
 <fieldset class="cbi-section">
 	<legend><%:Output%></legend>
 	<span id="tcpdump-message"></span>
-	<span id="tcpdump-log"></span>
+	<div class="cbi-section-node">
+		<textarea id="tcpdump-log" rows="10" cols="80" readonly></textarea>
+	</div>
 </fieldset>
 
 <hr />
@@ -130,7 +141,7 @@ $Id$
 	}
 
 	function update_poll() {
-		XHR.poll(10, '<%=luci.dispatcher.build_url("admin", "network", "tcpdump")%>/update',
+		XHR.poll(5, '<%=luci.dispatcher.build_url("admin", "network", "tcpdump")%>/update',
 			null, update_callback)
 	}
 
@@ -202,9 +213,8 @@ $Id$
 		in_use.innerHTML = "<pre>" + msg + "</pre>";
 		in_use = document.getElementById("tcpdump-log");
 		if (capture_active) {
-			in_use.innerHTML = "<pre>" + json.capture.log + "</pre>";
-		} else {
-			in_use.innerHTML = ""
+			in_use.innerHTML = json.capture.log;
+			in_use.scrollTop = in_use.scrollHeight;
 		}
 		update_button()
 	}

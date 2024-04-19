@@ -113,6 +113,8 @@ function capture_start(ifname, stop_value, stop_unit, filter)
 			-- Create temporal folders
 			os.execute("mkdir -p " .. tcpdump_cap_folder)
 			os.execute("mkdir -p " .. tcpdump_filter_folder)
+			os.execute("rm " .. tcpdump_cap_folder .. "*")
+			os.execute("rm " .. tcpdump_filter_folder .. "*")
 			local prefix = "capture_" .. os.date("%Y-%m-%d_%H.%M.%S")
 			local pcap_file = tcpdump_cap_folder .. prefix .. ".pcap"
 			local filter_file = tcpdump_filter_folder .. prefix .. ".filter"
@@ -139,7 +141,7 @@ function string_to_file(file, data)
 end
 
 function tcpdump_start(ifname, stop_value, stop_unit, filter_file, pcap_file)
-	local cmd = "tcpdump -i %s -F %s -w %s"
+	local cmd = "tcpdump -i %s -F %s -w %s --print -v -C 10 -W 10"
 	cmd = string.format(cmd, ifname, filter_file, pcap_file)
 	-- Packet limit if required
 	if tonumber(stop_value) ~= 0 and stop_unit == "P" then
@@ -262,16 +264,16 @@ function list_entries(cap_name)
 	local filter
 	local glob_str
 	if cap_name == nil then
-		glob_str = tcpdump_cap_folder .. "*.pcap"
+		glob_str = tcpdump_cap_folder .. "*"
 	else
 		glob_str = tcpdump_cap_folder .. cap_name .. ".pcap"
 	end
 	for file in fs.glob(glob_str) do
-		name = string.sub(fs.basename(file), 1, -6)
+		name = fs.basename(file)
 		size = fs.stat(file, "size")
 		mtime = fs.stat(file, "ctime")
 		-- Figure out if there's an associated filter
-		if fs.access(tcpdump_filter_folder .. name .. ".filter") then
+		if fs.access(tcpdump_filter_folder .. string.sub(fs.basename(file), 1, -7) .. ".filter") then
 			filter = true
 		else
 			filter = false
@@ -304,7 +306,7 @@ end
 function capture_get(file_type, cap_name)
 	local fs = require "nixio.fs"
 	if file_type == "all" then
-		local cmd = "gzip -c " .. tcpdump_cap_folder .. "*.pcap"
+		local cmd = "tar -cvf - --transform 's|.*/||' " .. tcpdump_cap_folder .. "* " .. tcpdump_filter_folder .. "*|gzip" 
 		local download_name = 'capture-' .. os.date("%Y-%m-%d_%H.%M.%S") .. '.tar.gz'
 		local handle = io.popen(cmd)
 		local output = handle:read("*a")
@@ -318,8 +320,8 @@ function capture_get(file_type, cap_name)
 			luci.http.status(500, "Error generating output")
 		end
 	elseif file_type == "pcap" then
-		local file = tcpdump_cap_folder .. cap_name .. '.pcap'
-		local download_name = cap_name .. '.pcap'
+		local file = tcpdump_cap_folder .. cap_name
+		local download_name = cap_name
 		if fs.access(file) then
 			luci.http.prepare_content("application/octet-stream")
 			luci.http.header("Content-Disposition", "attachment; filename=" .. download_name)
@@ -328,8 +330,8 @@ function capture_get(file_type, cap_name)
 			luci.http.status(404, "File not found")
 		end
 	elseif file_type == "filter" then
-		local file = tcpdump_filter_folder .. cap_name .. '.filter'
-		local download_name = cap_name .. '.filter'
+		local file = tcpdump_filter_folder .. string.sub(cap_name,1,-7) .. '.filter'
+		local download_name = string.sub(cap_name,1,-7) .. '.filter'
 		if fs.access(file) then
 			luci.http.prepare_content("application/octet-stream")
 			luci.http.header("Content-Disposition", "attachment; filename=" .. download_name)
